@@ -15,7 +15,3 @@
 // "door", one light, and the standard motion/obstruction/motor/button
 // sensors. Other ESPHome devices will not work with this package.
 package ratgdo
-
-// Version is the semantic version of this library. Bump with
-// github.com/kevinburke/bump_version.
-const Version = "0.1.0"
