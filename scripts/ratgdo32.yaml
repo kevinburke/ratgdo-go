@@ -1,0 +1,33 @@
+# ratgdo32.yaml — custom firmware overlay for a ratgdo v3.2 board.
+#
+# Board: ratgdo v3.2 (ESP32, Security+ 2.0)
+#
+# The upstream YAML at github.com/ratgdo/esphome-ratgdo/v32board.yaml does the
+# heavy lifting; this file just layers on things that must not be shipped in a
+# public firmware: wifi creds, the native-API encryption key, and web-server
+# basic auth.
+#
+# Build and flash instructions live in README.md.
+
+packages:
+  ratgdo: github://ratgdo/esphome-ratgdo/v32board.yaml@main
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+# Native ESPHome API on TCP 6053, authenticated+encrypted (Noise protocol).
+# Clients (e.g. github.com/kevinburke/ratgdo-go) must present the same base64
+# PSK. Generate one with `make genkey`.
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+# The upstream config enables an unauthenticated web_server on port 80 that
+# accepts door-control POSTs from anyone on the network. Force HTTP basic auth.
+# This is defense in depth — a network ACL / VLAN firewall should still be the
+# primary gate for an IoT device.
+web_server:
+  auth:
+    username: !secret web_username
+    password: !secret web_password
