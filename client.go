@@ -490,15 +490,18 @@ func (c *Client) connect(ctx context.Context) error {
 	reader := bufio.NewReader(tcpConn)
 	c.logger.Debug("ratgdo setup: handshake ok")
 
-	// Hello. Announce an API version the server understands; the 1.10 pair
-	// is what aioesphomeapi sends as of ESPHome 2026.4 (April 2026). Zeros
-	// cause the server to disconnect_client_ immediately. Bump if a newer
-	// ESPHome release stops accepting 1.10.
+	// Hello. Announce an API version the server understands; 1.14 is what
+	// ESPHome 2026.4 advertises and stops warning about. Checked on
+	// 2026-04-22 against:
+	// https://github.com/esphome/esphome/blob/36720c8495e3428cce7caa922d2f94aad2a8c704/esphome/components/api/api.proto#L102-L644
+	// https://github.com/esphome/esphome/blob/36720c8495e3428cce7caa922d2f94aad2a8c704/esphome/components/api/api_connection.cpp#L405-L418
+	// https://github.com/esphome/esphome/blob/36720c8495e3428cce7caa922d2f94aad2a8c704/esphome/components/api/api_connection.cpp#L1676-L1683
+	// Zeros cause the server to disconnect_client_ immediately.
 	if _, err := c.syncExchange(apiConn, reader,
 		&api.HelloRequest{
 			ClientInfo:      c.clientID,
 			ApiVersionMajor: 1,
-			ApiVersionMinor: 10,
+			ApiVersionMinor: 14,
 		},
 		api.HelloResponseTypeID); err != nil {
 		_ = tcpConn.Close()
@@ -823,21 +826,21 @@ func (c *Client) syncListEntities(apiConn connection.ApiConnection, reader *bufi
 		case *api.ListEntitiesDoneResponse:
 			return entities, nil
 		case *api.ListEntitiesCoverResponse:
-			entities["cover:"+m.ObjectId] = m.Key
+			entities["cover:"+listEntityObjectID(m.ObjectId, m.Name)] = m.Key
 		case *api.ListEntitiesLightResponse:
-			entities["light:"+m.ObjectId] = m.Key
+			entities["light:"+listEntityObjectID(m.ObjectId, m.Name)] = m.Key
 		case *api.ListEntitiesBinarySensorResponse:
-			entities["binary_sensor:"+m.ObjectId] = m.Key
+			entities["binary_sensor:"+listEntityObjectID(m.ObjectId, m.Name)] = m.Key
 		case *api.ListEntitiesSensorResponse:
-			entities["sensor:"+m.ObjectId] = m.Key
+			entities["sensor:"+listEntityObjectID(m.ObjectId, m.Name)] = m.Key
 		case *api.ListEntitiesSwitchResponse:
-			entities["switch:"+m.ObjectId] = m.Key
+			entities["switch:"+listEntityObjectID(m.ObjectId, m.Name)] = m.Key
 		case *api.ListEntitiesButtonResponse:
-			entities["button:"+m.ObjectId] = m.Key
+			entities["button:"+listEntityObjectID(m.ObjectId, m.Name)] = m.Key
 		case *api.ListEntitiesLockResponse:
-			entities["lock:"+m.ObjectId] = m.Key
+			entities["lock:"+listEntityObjectID(m.ObjectId, m.Name)] = m.Key
 		case *api.ListEntitiesNumberResponse:
-			entities["number:"+m.ObjectId] = m.Key
+			entities["number:"+listEntityObjectID(m.ObjectId, m.Name)] = m.Key
 		case *api.PingRequest:
 			_ = apiConn.Write(&api.PingResponse{})
 		case *api.GetTimeRequest:
@@ -847,6 +850,28 @@ func (c *Client) syncListEntities(apiConn connection.ApiConnection, reader *bufi
 }
 
 // --- Small helpers --------------------------------------------------------
+
+func listEntityObjectID(objectID, name string) string {
+	if objectID != "" {
+		return objectID
+	}
+	var b strings.Builder
+	b.Grow(len(name))
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch {
+		case c == ' ':
+			b.WriteByte('_')
+		case 'A' <= c && c <= 'Z':
+			b.WriteByte(c + ('a' - 'A'))
+		case c == '-' || c == '_' || ('0' <= c && c <= '9') || ('a' <= c && c <= 'z'):
+			b.WriteByte(c)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	return b.String()
+}
 
 func sleepOrClose(closeCh <-chan struct{}, d time.Duration) bool {
 	t := time.NewTimer(d)
