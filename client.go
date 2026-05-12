@@ -327,6 +327,13 @@ func (c *Client) buttonPress(ctx context.Context, id string) error {
 	return c.sendWhenConnected(ctx, &api.ButtonCommandRequest{Key: key})
 }
 
+// Ping probes the active API session. It blocks until the device responds,
+// ctx expires, or the client disconnects.
+func (c *Client) Ping(ctx context.Context) error {
+	_, err := c.exchange(ctx, &api.PingRequest{}, api.PingResponseTypeID)
+	return err
+}
+
 // DeviceInfo queries the device for its identity metadata. Unlike the other
 // commands, DeviceInfo blocks until a response arrives or ctx expires.
 func (c *Client) DeviceInfo(ctx context.Context) (*DeviceInfo, error) {
@@ -416,7 +423,7 @@ func (c *Client) exchange(ctx context.Context, req proto.Message, respID uint64)
 	}
 }
 
-// One-shot waiter registration for request/response pairs (DeviceInfo etc).
+// One-shot waiter registration for request/response pairs.
 // A single slot per type ID is enough for the handful of sync calls we make.
 func (c *Client) registerWaiter(respID uint64) chan proto.Message {
 	ch := make(chan proto.Message, 1)
@@ -426,7 +433,8 @@ func (c *Client) registerWaiter(respID uint64) chan proto.Message {
 	}
 	// If another goroutine is already waiting, replace it; the old waiter
 	// will drop its message and return nil when its own ctx expires. This
-	// shouldn't happen in normal use since we only have DeviceInfo today.
+	// shouldn't happen in normal use since callers don't need concurrent
+	// requests for the same response type.
 	if old, ok := c.waiters[respID]; ok {
 		close(old)
 	}
@@ -467,8 +475,21 @@ func (c *Client) deliverWaiter(msg proto.Message) bool {
 // c.entities, and initial state are populated and c.connected is true.
 func (c *Client) connect(ctx context.Context) error {
 	d := &net.Dialer{Timeout: c.timeout}
-	tcpConn, err := d.DialContext(ctx, "tcp", c.addr)
+	conn, err := d.DialContext(ctx, "tcp", c.addr)
 	if err != nil {
+		return err
+	}
+	tcpConn, ok := conn.(*net.TCPConn)
+	if !ok {
+		_ = conn.Close()
+		return fmt.Errorf("ratgdo: dial tcp: got %T, want *net.TCPConn", conn)
+	}
+	if err := tcpConn.SetKeepAlive(true); err != nil {
+		_ = tcpConn.Close()
+		return err
+	}
+	if err := tcpConn.SetKeepAlivePeriod(60 * time.Second); err != nil {
+		_ = tcpConn.Close()
 		return err
 	}
 	// Set a deadline covering the whole setup phase so any stalled read or
