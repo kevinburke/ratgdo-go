@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/mycontroller-org/esphome_api v1.3.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
