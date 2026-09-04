@@ -623,7 +623,7 @@ func (c *Client) manage() {
 			return
 		default:
 		}
-		if err != nil && !errors.Is(err, io.EOF) && !isUseOfClosed(err) {
+		if !errors.Is(err, io.EOF) && !isUseOfClosed(err) {
 			c.logger.Info("ratgdo session ended", "err", err)
 		}
 		if sleepOrClose(c.closeCh, delay) {
