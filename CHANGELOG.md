@@ -1,6 +1,21 @@
 # Changelog
 
-## v0.4.0 (unreleased)
+## v0.5.0 (2026-10-15)
+
+### Changed
+
+- Updated `github.com/mycontroller-org/esphome_api` from v1.3.0 to v1.4.0,
+  which moves the ESPHome API proto baseline from 2024.5.0 to 2026.7.0.
+  Verified against a ratgdo32 running ESPHome 2026.4.0 with Noise encryption:
+  the connection, entity listing (25 entities) and initial state all work.
+- The plaintext-session login now sends `AuthenticationRequest` (renamed from
+  `ConnectRequest` upstream). ESPHome 2026.1+ ignores password
+  authentication, and this path has not been tested against a real plaintext
+  device. Noise-encrypted sessions do not use it.
+- Updated `google.golang.org/protobuf` to v1.36.12.
+- Moved CI to Buildkite.
+
+## v0.4.0 (2026-05-12)
 
 ### Added
 
