@@ -272,15 +272,22 @@ func (c *Client) SetDoorPosition(ctx context.Context, position float32) error {
 	})
 }
 
+// coverCommand sends open/close/stop via the legacy command field. Deprecated
+// upstream in favor of the position/stop fields, but still the only form the
+// ratgdo firmware we target honors for open and close.
+//
+//lint:ignore SA1019 legacy cover command is still required by ratgdo firmware
 func (c *Client) coverCommand(ctx context.Context, cmd api.LegacyCoverCommand) error {
 	key, ok := c.entityKey("cover:door")
 	if !ok {
 		return ErrNoEntity
 	}
 	return c.sendWhenConnected(ctx, &api.CoverCommandRequest{
-		Key:              key,
+		Key: key,
+		//lint:ignore SA1019 see coverCommand
 		HasLegacyCommand: true,
-		LegacyCommand:    cmd,
+		//lint:ignore SA1019 see coverCommand
+		LegacyCommand: cmd,
 	})
 }
 
@@ -530,17 +537,20 @@ func (c *Client) connect(ctx context.Context) error {
 	}
 	// Connect (login) is only required on plaintext sessions. With Noise
 	// encryption the PSK authentication is already done in the handshake,
-	// and sending ConnectRequest gets silently dropped by current ESPHome
-	// servers.
+	// and sending AuthenticationRequest gets silently dropped by current
+	// ESPHome servers. Password auth is deprecated (removed in ESPHome
+	// 2026.1.0), but older firmware on plaintext sessions still requires it.
 	if c.encKey == "" {
 		resp, err := c.syncExchange(apiConn, reader,
-			&api.ConnectRequest{Password: ""},
-			api.ConnectResponseTypeID)
+			//lint:ignore SA1019 password auth is needed for pre-2026.1 firmware
+			&api.AuthenticationRequest{Password: ""},
+			api.AuthenticationResponseTypeID)
 		if err != nil {
 			_ = tcpConn.Close()
 			return fmt.Errorf("ratgdo: connect: %w", err)
 		}
-		if cr, ok := resp.(*api.ConnectResponse); ok && cr.InvalidPassword {
+		//lint:ignore SA1019 see AuthenticationRequest above
+		if cr, ok := resp.(*api.AuthenticationResponse); ok && cr.InvalidPassword {
 			_ = tcpConn.Close()
 			return errors.New("ratgdo: connect: invalid password")
 		}
